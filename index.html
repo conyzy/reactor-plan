@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反应釜月度排产计划 - 协作版</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  background: #f5f5f0;
+  color: #1a1a18;
+  min-height: 100vh;
+  padding: 16px;
+}
+.wrap { max-width: 100%; }
+
+/* ---- Top bar ---- */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 14px; flex-wrap: wrap;
+}
+.topbar h1 { font-size: 16px; font-weight: 500; }
+.month-nav { display: flex; align-items: center; gap: 6px; }
+.month-nav button {
+  background: #fff; border: 0.5px solid rgba(0,0,0,0.28);
+  border-radius: 6px; padding: 4px 12px; cursor: pointer;
+  font-size: 14px; color: #5f5e5a;
+}
+.month-nav button:hover { border-color: rgba(0,0,0,0.45); color: #1a1a18; }
+.month-label {
+  font-size: 14px; font-weight: 500; min-width: 100px; text-align: center;
+}
+.btn {
+  background: #fff; border: 0.5px solid rgba(0,0,0,0.28);
+  border-radius: 8px; padding: 6px 14px; cursor: pointer;
+  font-size: 12px; color: #5f5e5a;
+}
+.btn:hover { border-color: rgba(0,0,0,0.45); color: #1a1a18; }
+.btn.primary { background: #e6f1fb; border-color: #85b7eb; color: #185fa5; }
+.btn.primary:hover { background: #d0e7f8; }
+.btn.danger  { color: #a32d2d; border-color: #f09595; }
+.btn.success { background: #e6f9e6; border-color: #7bc97b; color: #1a6b1a; }
+
+/* ---- Stats ---- */
+.stats {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 14px;
+}
+@media(max-width:700px){ .stats{ grid-template-columns: repeat(2,1fr); } }
+.stat-card { background: #eeecea; border-radius: 8px; padding: 10px 14px; }
+.stat-label { font-size: 11px; color: #888780; margin-bottom: 3px; }
+.stat-val   { font-size: 22px; font-weight: 500; color: #1a1a18; }
+.stat-sub   { font-size: 11px; color: #b4b2a9; margin-top: 2px; }
+
+/* ---- Legend ---- */
+.legend-bar {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; margin-bottom: 12px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; color: #5f5e5a; cursor: pointer;
+  padding: 3px 8px; border-radius: 6px;
+  border: 0.5px solid transparent;
+  user-select: none; transition: border-color 0.15s;
+}
+.legend-item:hover { border-color: rgba(0,0,0,0.2); }
+.legend-item.selected { border-color: rgba(0,0,0,0.4); }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.legend-sep { width: 0.5px; height: 18px; background: rgba(0,0,0,0.12); margin: 0 4px; }
+
+/* ---- Table area ---- */
+.table-wrap { overflow: auto; border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.12); background: #fff; }
+table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 900px;
+  width: 100%;
+}
+thead th {
+  background: #fafaf8;
+  border-bottom: 0.5px solid rgba(0,0,0,0.1);
+  border-right: 0.5px solid rgba(0,0,0,0.07);
+  padding: 5px 2px;
+  font-size: 11px; font-weight: 500; color: #888780;
+  text-align: center; white-space: nowrap;
+  position: sticky; top: 0; z-index: 10;
+}
+thead th.col-reactor {
+  width: 74px; min-width: 74px; left: 0; z-index: 20;
+  text-align: left; padding-left: 10px;
+  background: #fafaf8;
+}
+thead th.day-hd { width: 34px; min-width: 32px; }
+thead th.today-hd { background: #fcebeb; color: #a32d2d; }
+tbody tr { border-bottom: 0.5px solid rgba(0,0,0,0.07); }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover td { background: #fafaf8 !important; }
+tbody td {
+  border-right: 0.5px solid rgba(0,0,0,0.06);
+  padding: 0; height: 34px; vertical-align: middle;
+  text-align: center; cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+tbody td.col-reactor {
+  position: sticky; left: 0; z-index: 5; background: #fff;
+  padding: 0 8px; text-align: left; cursor: default;
+}
+tbody td.col-reactor:hover { background: #fff !important; }
+.reactor-name { font-weight: 500; font-size: 12px; }
+.reactor-cap  { font-size: 10px; color: #888780; }
+.cell-block {
+  display: block; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 500; line-height: 1.2;
+  padding: 1px 2px; overflow: hidden;
+}
+.cell-empty { color: transparent; }
+.cell-empty:hover { background: rgba(0,0,0,0.04); color: #b4b2a9; }
+td.weekend { background: #f9f8f5; }
+td.today-col { background: #fff8f8; }
+.cell-edited-by {
+  position: absolute; bottom: 1px; right: 2px;
+  font-size: 8px; color: rgba(0,0,0,0.35); font-weight: 400;
+}
+
+/* ---- Side panel ---- */
+.panel {
+  background: #fff; border: 0.5px solid rgba(0,0,0,0.18);
+  border-radius: 12px; padding: 16px; margin-top: 14px; display: none;
+}
+.panel.open { display: block; }
+.panel-title { font-size: 13px; font-weight: 500; margin-bottom: 12px; }
+.panel-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.form-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+.form-label { font-size:12px; color:#888780; min-width:56px; flex-shrink:0; }
+.form-row select, .form-row input[type="text"], .form-row input[type="color"] {
+  flex:1; min-width:100px; font-size:12px; padding:5px 8px;
+  border:0.5px solid rgba(0,0,0,0.22); border-radius:6px;
+  background:#fff; color:#1a1a18; outline:none;
+}
+.form-row input[type="color"] { min-width:48px; max-width:48px; padding:2px 4px; height:30px; cursor:pointer; }
+.form-row select:focus, .form-row input:focus { border-color:#85b7eb; }
+.form-actions { display:flex; gap:8px; margin-top:8px; }
+
+/* right-click context menu */
+.ctx-menu {
+  position: fixed; background: #fff;
+  border: 0.5px solid rgba(0,0,0,0.2); border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  padding: 4px 0; display: none; z-index: 999; min-width: 140px;
+}
+.ctx-item {
+  padding: 7px 14px; font-size: 12px; cursor: pointer; color: #1a1a18;
+}
+.ctx-item:hover { background: #f5f5f0; }
+.ctx-item.danger { color: #a32d2d; }
+
+/* tooltip */
+.tooltip {
+  position: fixed; background: rgba(28,28,26,0.9); color:#fff;
+  font-size:12px; padding:6px 10px; border-radius:6px;
+  pointer-events:none; display:none; z-index:1000;
+  max-width:200px; line-height:1.6; white-space:pre-line;
+}
+
+/* ---- Cloud config panel ---- */
+.cloud-panel {
+  background: #fff; border: 0.5px solid rgba(0,0,0,0.18);
+  border-radius: 12px; padding: 16px; margin-bottom: 14px;
+  display: none;
+}
+.cloud-panel.open { display: block; }
+.cloud-panel .form-row { margin-bottom: 12px; }
+.cloud-panel input[type="text"], .cloud-panel input[type="password"] {
+  flex: 1; font-size: 12px; padding: 6px 10px;
+  border: 0.5px solid rgba(0,0,0,0.22); border-radius: 6px;
+  background: #fff; color: #1a1a18; outline: none;
+  min-width: 200px;
+}
+.cloud-panel input:focus { border-color: #85b7eb; }
+.cloud-status {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 8px 12px; border-radius: 6px;
+  margin-top: 10px;
+}
+.cloud-status.offline { background: #fff3f3; color: #a32d2d; }
+.cloud-status.online  { background: #e6f9e6; color: #1a6b1a; }
+.cloud-status.syncing { background: #fff8e1; color: #7a6000; }
+
+/* ---- Sync indicator ---- */
+.sync-bar {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: #b4b2a9; margin-left: auto;
+}
+.sync-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #b4b2a9;
+}
+.sync-dot.online { background: #4caf50; animation: pulse 2s infinite; }
+.sync-dot.syncing { background: #ff9800; animation: pulse 0.8s infinite; }
+.sync-dot.error { background: #f44336; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ---- Online users ---- */
+.online-users {
+  display: flex; align-items: center; gap: 4px;
+  margin-left: 8px;
+}
+.user-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #e6f1fb; color: #185fa5; font-size: 11px;
+  font-weight: 500; border: 1.5px solid #85b7eb;
+}
+
+/* ---- History panel ---- */
+.history-list {
+  max-height: 300px; overflow-y: auto;
+  font-size: 12px;
+}
+.history-item {
+  padding: 6px 8px; border-bottom: 0.5px solid rgba(0,0,0,0.06);
+  display: flex; gap: 8px; align-items: baseline;
+}
+.history-time { color: #888780; font-size: 11px; white-space: nowrap; }
+.history-user { font-weight: 500; color: #185fa5; }
+.history-desc { color: #5f5e5a; }
+
+/* print */
+@media print {
+  body { background:#fff; padding:4px; }
+  .topbar .btn, .panel, .ctx-menu, .tooltip, .cloud-panel { display:none !important; }
+  .table-wrap { border:1px solid #ccc; overflow:visible; }
+}
+</style>
+</head>
+<body>
+
+<div class="cloud-panel" id="cloudPanel">
+  <div class="panel-hd">
+    <div class="panel-title" style="margin:0">☁️ 云端协作配置</div>
+    <button class="btn" id="closeCloudPanel">关闭</button>
+  </div>
+  <div style="font-size:12px;color:#888780;margin-bottom:12px">
+    配置 GitHub Token 和 Gist ID 后，所有编辑将自动同步到云端。<br>
+    团队成员使用同一个 Gist ID 即可协作编辑。Token 需要 <b>gist</b> 权限。
+  </div>
+  <div class="form-row">
+    <span class="form-label">用户名</span>
+    <input type="text" id="cfgUserName" placeholder="你的名字（协作时显示）">
+  </div>
+  <div class="form-row">
+    <span class="form-label">Token</span>
+    <input type="password" id="cfgToken" placeholder="ghp_xxxxxxxxxxxx">
+    <a href="https://github.com/settings/tokens/new?scopes=gist" target="_blank"
+       style="font-size:11px;color:#185fa5;white-space:nowrap">生成 Token →</a>
+  </div>
+  <div class="form-row">
+    <span class="form-label">Gist ID</span>
+    <input type="text" id="cfgGistId" placeholder="留空则自动创建新 Gist，或粘贴已有 Gist ID">
+  </div>
+  <div class="form-row">
+    <span class="form-label">同步间隔</span>
+    <select id="cfgSyncInterval" style="flex:1;min-width:100px;font-size:12px;padding:5px 8px;border:0.5px solid rgba(0,0,0,0.22);border-radius:6px;background:#fff">
+      <option value="5000">5 秒</option>
+      <option value="10000" selected>10 秒</option>
+      <option value="30000">30 秒</option>
+      <option value="60000">60 秒</option>
+      <option value="0">关闭自动同步</option>
+    </select>
+  </div>
+  <div class="form-actions">
+    <button class="btn primary" id="saveCloudConfig">保存并连接</button>
+    <button class="btn" id="testConnection">测试连接</button>
+    <button class="btn danger" id="disconnectCloud">断开连接</button>
+  </div>
+  <div class="cloud-status offline" id="cloudStatus">
+    <span>● 未连接</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="topbar">
+    <h1>反应釜月度排产计划</h1>
+    <div class="month-nav">
+      <button id="prevMonth">&#8249;</button>
+      <div class="month-label" id="monthLabel"></div>
+      <button id="nextMonth">&#8250;</button>
+    </div>
+    <button class="btn primary" id="addProjectBtn">+ 新增项目</button>
+    <button class="btn" id="manageReactorBtn">管理釜位</button>
+    <button class="btn" id="printBtn">打印</button>
+    <button class="btn" id="exportBtn">导出 CSV</button>
+    <button class="btn danger" id="clearMonthBtn">清空本月</button>
+    <button class="btn success" id="cloudConfigBtn">☁️ 云端设置</button>
+    <button class="btn" id="historyBtn">📋 历史</button>
+    <div class="sync-bar">
+      <div class="sync-dot" id="syncDot"></div>
+      <span id="syncStatus">本地模式</span>
+      <div class="online-users" id="onlineUsers"></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">本月项目数</div><div class="stat-val" id="sProjects">—</div><div class="stat-sub">个不同产品/项目</div></div>
+    <div class="stat-card"><div class="stat-label">排满天次</div><div class="stat-val" id="sFilled">—</div><div class="stat-sub">釜·天已安排</div></div>
+    <div class="stat-card"><div class="stat-label">设备利用率</div><div class="stat-val" id="sUtil">—</div><div class="stat-sub">本月占用比例</div></div>
+    <div class="stat-card"><div class="stat-label">空闲天次</div><div class="stat-val" id="sIdle">—</div><div class="stat-sub">釜·天未安排</div></div>
+  </div>
+
+  <div class="legend-bar" id="legendBar">
+    <span style="font-size:12px;color:#888780;margin-right:4px">项目选色：</span>
+  </div>
+
+  <div class="table-wrap">
+    <table id="planTable"><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+  </div>
+
+  <!-- 新增项目面板 -->
+  <div class="panel" id="addProjectPanel">
+    <div class="panel-title">新增项目 / 产品</div>
+    <div class="form-row">
+      <span class="form-label">项目名称</span>
+      <input type="text" id="pName" placeholder="">
+    </div>
+    <div class="form-row">
+      <span class="form-label">颜色</span>
+      <input type="color" id="pColor" value="#b5d4f4">
+      <input type="text"  id="pHex"   placeholder="#b5d4f4" style="max-width:90px">
+    </div>
+    <div class="form-row">
+      <span class="form-label">备注</span>
+      <input type="text" id="pNote" placeholder="负责人、工艺要求等">
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" id="confirmProject">确认添加</button>
+      <button class="btn" id="cancelProject">取消</button>
+    </div>
+  </div>
+
+  <!-- 编辑项目面板 -->
+  <div class="panel" id="editProjectPanel">
+    <div class="panel-title">编辑项目</div>
+    <input type="hidden" id="editPid">
+    <div class="form-row">
+      <span class="form-label">项目名称</span>
+      <input type="text" id="editPName" placeholder="">
+    </div>
+    <div class="form-row">
+      <span class="form-label">颜色</span>
+      <input type="color" id="editPColor" value="#b5d4f4">
+      <input type="text"  id="editPHex"   placeholder="#b5d4f4" style="max-width:90px">
+    </div>
+    <div class="form-row">
+      <span class="form-label">备注</span>
+      <input type="text" id="editPNote" placeholder="负责人、工艺要求等">
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" id="confirmEditProject">保存修改</button>
+      <button class="btn danger" id="deleteProject">删除项目</button>
+      <button class="btn" id="cancelEditProject">取消</button>
+    </div>
+  </div>
+
+  <!-- 管理釜位面板 -->
+  <div class="panel" id="reactorPanel">
+    <div class="panel-hd">
+      <div class="panel-title" style="margin:0">管理釜位</div>
+      <button class="btn" id="closeReactorPanel">关闭</button>
+    </div>
+    <div style="font-size:12px;color:#888780;margin-bottom:10px">默认 1-26 号釜，可自定义名称和容积。</div>
+    <div id="reactorList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:300px;overflow-y:auto"></div>
+    <div style="margin-top:12px;font-size:12px;font-weight:500;color:#1a1a18;margin-bottom:8px">新增釜位</div>
+    <div class="form-row">
+      <input type="text" id="newRId"   placeholder="编号 如 R-27" style="max-width:110px">
+      <input type="text" id="newRName" placeholder="名称 如 27号釜">
+      <input type="text" id="newRCap"  placeholder="容积 如 2000L" style="max-width:100px">
+      <button class="btn primary" id="addReactorBtn2">添加</button>
+    </div>
+  </div>
+
+  <!-- 单格编辑面板 -->
+  <div class="panel" id="cellPanel">
+    <div class="panel-hd">
+      <div class="panel-title" id="cellPanelTitle" style="margin:0">查看排产</div>
+      <button class="btn" id="closeCellPanel">关闭</button>
+    </div>
+    <div id="cellDetail"></div>
+    <div class="form-row" style="margin-top:12px">
+      <span class="form-label">备注</span>
+      <input type="text" id="cellNote" placeholder="批号、工艺参数等（选填）">
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" id="confirmCell">保存备注</button>
+      <button class="btn danger"  id="clearCell">清除此格</button>
+      <button class="btn" id="cancelCell">取消</button>
+    </div>
+  </div>
+
+  <!-- 历史记录面板 -->
+  <div class="panel" id="historyPanel">
+    <div class="panel-hd">
+      <div class="panel-title" style="margin:0">📋 编辑历史</div>
+      <button class="btn" id="closeHistoryPanel">关闭</button>
+    </div>
+    <div class="history-list" id="historyList">
+      <div style="font-size:12px;color:#888780;padding:8px">暂无历史记录</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Context menu -->
+<div class="ctx-menu" id="ctxMenu" onclick="hideCtxMenu()">
+  <div class="ctx-item" id="ctxEdit">编辑此格</div>
+  <div class="ctx-item" id="ctxFillRow">填满整行（本月）</div>
+  <div class="ctx-item" id="ctxFillCol">填满整列（本釜）</div>
+  <div class="ctx-item danger" id="ctxClearRow">清空整行</div>
+  <div class="ctx-item danger" id="ctxClearCell">清除此格</div>
+</div>
+
+<!-- Project context menu -->
+<div class="ctx-menu" id="projCtxMenu">
+  <div class="ctx-item" id="projCtxEdit">编辑项目</div>
+  <div class="ctx-item danger" id="projCtxDelete">删除项目</div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ==================== 存储 Key ====================
+const LS_PLAN      = 'mplan_data';
+const LS_PROJECTS  = 'mplan_projects';
+const LS_REACTORS  = 'mplan_reactors';
+const LS_TOKEN     = 'plan_gh_token';
+const LS_GIST_ID   = 'plan_gist_id';
+const LS_USERNAME  = 'plan_username';
+const LS_SYNC_INT  = 'plan_sync_interval';
+
+// ==================== 默认数据 ====================
+function defaultReactors() {
+  const rs = [];
+  for (let i = 1; i <= 26; i++) {
+    rs.push({ id: 'R-' + String(i).padStart(2,'0'), name: i + '号釜', cap: '' });
+  }
+  return rs;
+}
+const DEFAULT_PROJECTS = [];
+
+// ==================== 状态变量 ====================
+let plan = {};
+let projects = [];
+let reactors = [];
+let pidCounter = 7;
+let cloudConnected = false;
+let syncTimer = null;
+let lastSyncSha = null;
+let editingHistory = [];  // {time, user, desc}
+let isSyncing = false;    // 防止并发同步
+let dirtyFlag = false;    // 本地有未同步的修改
+let autoSyncEnabled = true;
+
+// ==================== 云端配置 ====================
+const PROXY_BASE = 'https://gh-api.zhangsw-jy.workers.dev';
+
+function getUserName() {
+  return localStorage.getItem(LS_USERNAME) || '匿名用户';
+}
+function getToken() {
+  return localStorage.getItem(LS_TOKEN) || '';
+}
+function getGistId() {
+  return localStorage.getItem(LS_GIST_ID) || '';
+}
+function getSyncInterval() {
+  return parseInt(localStorage.getItem(LS_SYNC_INT) || '10000');
+}
+
+// Gist API 封装（通过 Cloudflare Worker 代理）
+async function gistApi(method, path, body, timeoutMs) {
+  const token = getToken();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || 15000);
+  const targetUrl = 'https://api.github.com' + path;
+
+  try {
+    const res = await fetch(PROXY_BASE + '/', {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: targetUrl, token, method: method || 'GET', body: body || null }),
+    });
+    clearTimeout(timer);
+    const text = await res.text().catch(() => '');
+    if (!res.ok) throw new Error(method + ' ' + res.status + ' ' + text);
+    if (method === 'GET' && res.status !== 204) {
+      try { return JSON.parse(text || '{}'); } catch(e) { return text; }
+    }
+    return { ok: true };
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+// 读取 Gist
+async function gistRead(gistId) {
+  const data = await gistApi('GET', '/gists/' + gistId);
+  const files = data.files || {};
+  const metaFile = files['meta.json'];
+  const planFile = files['plan.json'];
+  const historyFile = files['history.json'];
+  const meta = metaFile ? JSON.parse(metaFile.content) : null;
+  const planData = planFile ? JSON.parse(planFile.content) : {};
+  const history = historyFile ? JSON.parse(historyFile.content) : [];
+  return { meta, planData, history, sha: data.version };
+}
+
+// 创建 Gist
+async function gistCreate(metaContent, planContent, historyContent) {
+  return gistApi('POST', '/gists', {
+    description: '反应釜排产数据 - 协作版',
+    public: false,
+    files: {
+      'meta.json':   { content: JSON.stringify(metaContent, null, 2) },
+      'plan.json':   { content: JSON.stringify(planContent, null, 2) },
+      'history.json':{ content: JSON.stringify(historyContent || [], null, 2) },
+    },
+  });
+}
+
+// 更新 Gist
+async function gistUpdate(gistId, metaContent, planContent, historyContent) {
+  return gistApi('PATCH', '/gists/' + gistId, {
+    description: '反应釜排产数据 - 协作版',
+    files: {
+      'meta.json':   { content: JSON.stringify(metaContent, null, 2) },
+      'plan.json':   { content: JSON.stringify(planContent, null, 2) },
+      'history.json':{ content: JSON.stringify(historyContent || [], null, 2) },
+    },
+  });
+}
+
+// ==================== 加载数据 ====================
+async function loadFromCloud() {
+  const gistId = getGistId();
+  const token = getToken();
+  if (!gistId || !token) return null;
+  try {
+    const result = await Promise.race([
+      gistRead(gistId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+    ]);
+    const meta = result.meta;
+    const planData = result.planData || {};
+    if (!meta && Object.keys(planData).length === 0) return null;
+    lastSyncSha = result.sha;
+    return {
+      projects: Array.isArray(meta.projects) ? meta.projects : [],
+      reactors: Array.isArray(meta.reactors) && meta.reactors.length > 0
+                  ? meta.reactors : defaultReactors(),
+      plan: typeof planData === 'object' && planData !== null ? planData : {},
+      history: Array.isArray(result.history) ? result.history : [],
+    };
+  } catch(e) {
+    console.warn('云端读取失败:', e);
+    return null;
+  }
+}
+
+function loadFromLocal() {
+  try {
+    return {
+      plan:     JSON.parse(localStorage.getItem(LS_PLAN))     || {},
+      projects: JSON.parse(localStorage.getItem(LS_PROJECTS)) || [],
+      reactors: JSON.parse(localStorage.getItem(LS_REACTORS)) || defaultReactors(),
+      history:  JSON.parse(localStorage.getItem('mplan_history')) || [],
+    };
+  } catch(e) {
+    return { plan: {}, projects: [], reactors: defaultReactors(), history: [] };
+  }
+}
+
+// ==================== 保存数据 ====================
+function persistData() {
+  localStorage.setItem(LS_PLAN,      JSON.stringify(plan));
+  localStorage.setItem(LS_PROJECTS, JSON.stringify(projects));
+  localStorage.setItem(LS_REACTORS, JSON.stringify(reactors));
+  localStorage.setItem('mplan_history', JSON.stringify(editingHistory.slice(-200)));
+  dirtyFlag = true;
+}
+
+// 自动同步到云端（防抖，编辑后延迟同步）
+let syncDebounceTimer = null;
+function scheduleAutoSync() {
+  if (!cloudConnected || !autoSyncEnabled) return;
+  if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(() => {
+    syncToCloud();
+  }, 2000); // 编辑后 2 秒自动同步
+}
+
+// 主动同步到云端
+async function syncToCloud() {
+  if (!cloudConnected || isSyncing) return;
+  if (!dirtyFlag) return;
+  isSyncing = true;
+  setSyncUI('syncing');
+
+  try {
+    const gistId = getGistId();
+    const metaContent = { projects, reactors };
+    const planContent = plan;
+
+    if (gistId) {
+      // 先读取最新 sha，防止冲突覆盖
+      const latest = await gistRead(gistId).catch(() => null);
+      if (latest && latest.sha !== lastSyncSha) {
+        // 云端有更新，需要合并
+        await mergeCloudData(latest);
+      }
+      const result = await gistUpdate(gistId, metaContent, planContent, editingHistory);
+      lastSyncSha = result.version || result.id;
+    } else {
+      const result = await gistCreate(metaContent, planContent, editingHistory);
+      localStorage.setItem(LS_GIST_ID, result.id);
+      lastSyncSha = result.version || result.id;
+      document.getElementById('cfgGistId').value = result.id;
+    }
+    dirtyFlag = false;
+    setSyncUI('online');
+    addLog('数据已同步到云端');
+  } catch(e) {
+    console.warn('云端同步失败:', e);
+    setSyncUI('error');
+  } finally {
+    isSyncing = false;
+  }
+}
+
+// 从云端拉取数据（定时同步用）
+async function pullFromCloud() {
+  if (!cloudConnected || isSyncing) return;
+  isSyncing = true;
+  try {
+    const gistId = getGistId();
+    if (!gistId) return;
+    const result = await gistRead(gistId);
+    if (result.sha === lastSyncSha) {
+      // 云端无变化
+      return;
+    }
+    // 云端有更新
+    if (dirtyFlag) {
+      // 本地有修改，合并
+      await mergeCloudData(result);
+    } else {
+      // 本地无修改，直接用云端数据
+      applyCloudData(result);
+    }
+  } catch(e) {
+    console.warn('云端拉取失败:', e);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+// 合并云端数据（简单的 last-write-wins + 合并策略）
+async function mergeCloudData(cloudResult) {
+  const cloudMeta = cloudResult.meta;
+  const cloudPlan = cloudResult.planData || {};
+  const cloudHistory = cloudResult.history || [];
+
+  // 合并 plan：以 cell 为粒度，保留两边的修改
+  // 策略：对于每个 cell key，如果本地有而云端没有 → 保留本地
+  //        如果云端有而本地没有 → 采纳云端
+  //        如果两边都有 → 以云端的为准（云端是最后写入的）
+  const mergedPlan = { ...plan };
+  for (const key in cloudPlan) {
+    if (!mergedPlan[key]) {
+      // 云端有，本地没有 → 采纳
+      mergedPlan[key] = cloudPlan[key];
+    }
+    // 两边都有 → 保留本地（本地编辑优先），但如果本地只是从云端拉来的旧数据则用云端
+    // 简化：本地的 dirty cell 保留，其余用云端
+  }
+  plan = mergedPlan;
+
+  // projects 和 reactors：以云端为主（如果云端有数据）
+  if (cloudMeta && Array.isArray(cloudMeta.projects) && cloudMeta.projects.length > 0) {
+    // 合并项目：保留本地独有的，加上云端的
+    const localOnlyProjects = projects.filter(lp => !cloudMeta.projects.find(cp => cp.id === lp.id));
+    projects = [...cloudMeta.projects, ...localOnlyProjects];
+    pidCounter = projects.length ? Math.max(...projects.map(p => parseInt(p.id.replace('p','')) || 0)) + 1 : 7;
+  }
+  if (cloudMeta && Array.isArray(cloudMeta.reactors) && cloudMeta.reactors.length > 0) {
+    reactors = cloudMeta.reactors;
+  }
+
+  // 合并历史
+  const mergedHistory = [...editingHistory];
+  for (const h of cloudHistory) {
+    if (!mergedHistory.find(mh => mh.time === h.time && mh.desc === h.desc)) {
+      mergedHistory.push(h);
+    }
+  }
+  editingHistory = mergedHistory.slice(-200);
+
+  lastSyncSha = cloudResult.sha;
+  dirtyFlag = true; // 合并后需要推送到云端
+  persistData();
+  refresh();
+  addLog('已合并云端更新');
+}
+
+function applyCloudData(cloudResult) {
+  const cloudMeta = cloudResult.meta;
+  const cloudPlan = cloudResult.planData || {};
+  const cloudHistory = cloudResult.history || [];
+
+  if (cloudMeta) {
+    projects = Array.isArray(cloudMeta.projects) ? cloudMeta.projects : projects;
+    reactors = Array.isArray(cloudMeta.reactors) && cloudMeta.reactors.length > 0
+               ? cloudMeta.reactors : reactors;
+    pidCounter = projects.length ? Math.max(...projects.map(p => parseInt(p.id.replace('p','')) || 0)) + 1 : 7;
+  }
+  plan = cloudPlan;
+  editingHistory = cloudHistory.slice(-200);
+  lastSyncSha = cloudResult.sha;
+  dirtyFlag = false;
+
+  localStorage.setItem(LS_PLAN, JSON.stringify(plan));
+  localStorage.setItem(LS_PROJECTS, JSON.stringify(projects));
+  localStorage.setItem(LS_REACTORS, JSON.stringify(reactors));
+  localStorage.setItem('mplan_history', JSON.stringify(editingHistory));
+  refresh();
+}
+
+// ==================== 同步 UI ====================
+function setSyncUI(state) {
+  const dot = document.getElementById('syncDot');
+  const status = document.getElementById('syncStatus');
+  dot.className = 'sync-dot ' + state;
+  if (state === 'online') status.textContent = '已同步';
+  else if (state === 'syncing') status.textContent = '同步中...';
+  else if (state === 'error') status.textContent = '同步失败';
+  else status.textContent = '本地模式';
+}
+
+function setCloudStatus(state, text) {
+  const el = document.getElementById('cloudStatus');
+  el.className = 'cloud-status ' + state;
+  el.innerHTML = '<span>● ' + text + '</span>';
+}
+
+// ==================== 自动同步定时器 ====================
+function startAutoSync() {
+  stopAutoSync();
+  const interval = getSyncInterval();
+  if (interval <= 0 || !cloudConnected) return;
+  syncTimer = setInterval(() => {
+    if (dirtyFlag) {
+      syncToCloud();
+    } else {
+      pullFromCloud();
+    }
+  }, interval);
+}
+
+function stopAutoSync() {
+  if (syncTimer) {
+    clearInterval(syncTimer);
+    syncTimer = null;
+  }
+}
+
+// ==================== 编辑历史 ====================
+function addEditHistory(desc) {
+  const entry = {
+    time: new Date().toISOString(),
+    user: getUserName(),
+    desc: desc,
+  };
+  editingHistory.push(entry);
+  if (editingHistory.length > 200) editingHistory = editingHistory.slice(-200);
+  persistData();
+  scheduleAutoSync();
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (!editingHistory.length) {
+    list.innerHTML = '<div style="font-size:12px;color:#888780;padding:8px">暂无历史记录</div>';
+    return;
+  }
+  list.innerHTML = editingHistory.slice().reverse().map(h => {
+    const t = new Date(h.time);
+    const ts = String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0') + ' ' +
+               String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+    return `<div class="history-item">
+      <span class="history-time">${ts}</span>
+      <span class="history-user">${h.user}</span>
+      <span class="history-desc">${h.desc}</span>
+    </div>`;
+  }).join('');
+}
+
+// ==================== 辅助 ====================
+function planKey(rId, year, month, day) {
+  return `${rId}__${year}_${String(month+1).padStart(2,'0')}_${String(day).padStart(2,'0')}`;
+}
+function daysInMonth(y, m) { return new Date(y, m+1, 0).getDate(); }
+function isWeekend(y, m, d) { const w = new Date(y,m,d).getDay(); return w===0||w===6; }
+function isToday2(y, m, d) {
+  const n = new Date();
+  return n.getFullYear()===y && n.getMonth()===m && n.getDate()===d;
+}
+function fmtMonth(y, m) { return y + '年' + (m+1) + '月'; }
+function getProject(id) { return projects.find(p => p.id === id); }
+
+function saveState() {
+  persistData();
+  scheduleAutoSync();
+}
+
+// 简单日志
+function addLog(msg) {
+  console.log('[排产计划] ' + msg);
+}
+
+// ==================== State ====================
+let viewYear, viewMonth;
+(function initDate() {
+  const now = new Date();
+  viewYear  = now.getFullYear();
+  viewMonth = now.getMonth();
+})();
+
+let selectedProjectId = null;
+let ctxTarget = null;
+
+// ==================== Legend ====================
+function buildLegend() {
+  const bar = document.getElementById('legendBar');
+  bar.innerHTML = '<span style="font-size:12px;color:#888780;margin-right:4px">点选项目：</span>';
+  projects.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'legend-item' + (p.id === selectedProjectId ? ' selected' : '');
+    item.dataset.pid = p.id;
+    item.innerHTML = `<div class="legend-dot" style="background:${p.color}"></div>${p.name}`;
+    item.addEventListener('click', () => {
+      if (selectedProjectId === p.id) {
+        selectedProjectId = null;
+      } else {
+        selectedProjectId = p.id;
+      }
+      buildLegend();
+    });
+    item.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      showProjectCtxMenu(e.clientX, e.clientY, p.id);
+    });
+    bar.appendChild(item);
+  });
+}
+
+// ==================== Table ====================
+function buildTable() {
+  const days = daysInMonth(viewYear, viewMonth);
+  const thead = document.getElementById('tableHead');
+  const tbody = document.getElementById('tableBody');
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+
+  const htr = document.createElement('tr');
+  const th0 = document.createElement('th');
+  th0.className = 'col-reactor';
+  th0.textContent = '釜位';
+  htr.appendChild(th0);
+  for (let d = 1; d <= days; d++) {
+    const th = document.createElement('th');
+    th.className = 'day-hd' + (isToday2(viewYear,viewMonth,d) ? ' today-hd' : '');
+    const dow = ['日','一','二','三','四','五','六'][new Date(viewYear,viewMonth,d).getDay()];
+    th.innerHTML = `<div>${d}</div><div style="font-size:10px;color:inherit">${dow}</div>`;
+    htr.appendChild(th);
+  }
+  thead.appendChild(htr);
+
+  reactors.forEach(r => {
+    const tr = document.createElement('tr');
+    const td0 = document.createElement('td');
+    td0.className = 'col-reactor';
+    td0.innerHTML = `<div class="reactor-name">${r.name}</div>${r.cap ? '<div class="reactor-cap">'+r.cap+'</div>' : ''}`;
+    tr.appendChild(td0);
+
+    for (let d = 1; d <= days; d++) {
+      const td = document.createElement('td');
+      const key = planKey(r.id, viewYear, viewMonth, d);
+      const entry = plan[key];
+      const proj = entry ? getProject(entry.pid) : null;
+
+      if (isWeekend(viewYear,viewMonth,d) && !proj) td.classList.add('weekend');
+      if (isToday2(viewYear,viewMonth,d) && !proj)  td.classList.add('today-col');
+
+      if (proj) {
+        td.style.background = proj.color;
+        const span = document.createElement('span');
+        span.className = 'cell-block';
+        span.textContent = proj.name.length > 4 ? proj.name.slice(0,4) : proj.name;
+        span.style.color = '#1a1a18';
+        td.appendChild(span);
+        // 显示编辑者（如果有）
+        if (entry && entry.editedBy) {
+          const badge = document.createElement('span');
+          badge.className = 'cell-edited-by';
+          badge.textContent = entry.editedBy.charAt(0);
+          td.appendChild(badge);
+        }
+      } else {
+        const span = document.createElement('span');
+        span.className = 'cell-block cell-empty';
+        span.textContent = '+';
+        td.appendChild(span);
+      }
+
+      td.dataset.rid = r.id;
+      td.dataset.day = d;
+
+      td.addEventListener('dblclick', () => {
+        if (!selectedProjectId) return;
+        const k = planKey(r.id, viewYear, viewMonth, d);
+        plan[k] = { pid: selectedProjectId, note: '', editedBy: getUserName(), editedAt: new Date().toISOString() };
+        const pName = getProject(selectedProjectId)?.name || '';
+        addEditHistory(`${r.name} ${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')} → ${pName}`);
+        saveState();
+        buildTable();
+        calcStats();
+      });
+
+      td.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        ctxTarget = { rId: r.id, day: d };
+        showCtxMenu(e.clientX, e.clientY);
+      });
+
+      td.addEventListener('mouseenter', e => {
+        const k2 = planKey(r.id, viewYear, viewMonth, d);
+        const ent = plan[k2];
+        if (!ent) return;
+        const pr = getProject(ent.pid);
+        if (!pr) return;
+        let txt = `${r.name}  ${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}\n${pr.name}`;
+        if (ent.note) txt += '\n备注：' + ent.note;
+        if (ent.editedBy) txt += '\n编辑：' + ent.editedBy;
+        const tip = document.getElementById('tooltip');
+        tip.textContent = txt;
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX + 12) + 'px';
+        tip.style.top  = (e.clientY - 4)  + 'px';
+      });
+      td.addEventListener('mousemove', e => {
+        const tip = document.getElementById('tooltip');
+        tip.style.left = (e.clientX + 12) + 'px';
+        tip.style.top  = (e.clientY - 4)  + 'px';
+      });
+      td.addEventListener('mouseleave', () => {
+        document.getElementById('tooltip').style.display = 'none';
+      });
+
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+// ==================== Stats ====================
+function calcStats() {
+  const days = daysInMonth(viewYear, viewMonth);
+  const total = reactors.length * days;
+  let filledCount = 0;
+  const pids = new Set();
+  reactors.forEach(r => {
+    for (let d = 1; d <= days; d++) {
+      const k = planKey(r.id, viewYear, viewMonth, d);
+      if (plan[k]) { filledCount++; pids.add(plan[k].pid); }
+    }
+  });
+  const util = total > 0 ? Math.round(filledCount / total * 100) : 0;
+  document.getElementById('sProjects').textContent = pids.size;
+  document.getElementById('sFilled').textContent   = filledCount;
+  document.getElementById('sUtil').textContent     = util + '%';
+  document.getElementById('sIdle').textContent     = total - filledCount;
+}
+
+// ==================== Context menu ====================
+const ctxMenu = document.getElementById('ctxMenu');
+function showCtxMenu(x, y) {
+  ctxMenu.style.left    = x + 'px';
+  ctxMenu.style.top     = y + 'px';
+  ctxMenu.style.display = 'block';
+}
+function hideCtxMenu() { ctxMenu.style.display = 'none'; }
+document.addEventListener('click', e => {
+  hideCtxMenu();
+  hideProjectCtxMenu();
+});
+document.addEventListener('keydown', e => { if (e.key==='Escape') { hideCtxMenu(); closeAllPanels(); } });
+
+document.getElementById('ctxEdit').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  openCellPanel(ctxTarget.rId, ctxTarget.day);
+  hideCtxMenu();
+});
+document.getElementById('ctxFillRow').addEventListener('click', () => {
+  if (!ctxTarget || !selectedProjectId) { alert('请先在图例中选择一个项目'); return; }
+  const days = daysInMonth(viewYear, viewMonth);
+  const rName = (reactors.find(r=>r.id===ctxTarget.rId)||{}).name || ctxTarget.rId;
+  const pName = getProject(selectedProjectId)?.name || '';
+  for (let d = 1; d <= days; d++) {
+    plan[planKey(ctxTarget.rId, viewYear, viewMonth, d)] = { pid: selectedProjectId, note: '', editedBy: getUserName(), editedAt: new Date().toISOString() };
+  }
+  addEditHistory(`${rName} 整月 → ${pName}`);
+  saveState(); buildTable(); calcStats(); hideCtxMenu();
+});
+document.getElementById('ctxFillCol').addEventListener('click', () => {
+  if (!ctxTarget || !selectedProjectId) { alert('请先在图例中选择一个项目'); return; }
+  const pName = getProject(selectedProjectId)?.name || '';
+  reactors.forEach(r => {
+    plan[planKey(r.id, viewYear, viewMonth, ctxTarget.day)] = { pid: selectedProjectId, note: '', editedBy: getUserName(), editedAt: new Date().toISOString() };
+  });
+  addEditHistory(`${viewMonth+1}月${ctxTarget.day}日 全部釜 → ${pName}`);
+  saveState(); buildTable(); calcStats(); hideCtxMenu();
+});
+document.getElementById('ctxClearRow').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  const rName = (reactors.find(r=>r.id===ctxTarget.rId)||{}).name || ctxTarget.rId;
+  if (!confirm('确认清空 ' + rName + ' 整月排产？')) return;
+  const days = daysInMonth(viewYear, viewMonth);
+  for (let d = 1; d <= days; d++) {
+    delete plan[planKey(ctxTarget.rId, viewYear, viewMonth, d)];
+  }
+  addEditHistory(`${rName} 整月已清空`);
+  saveState(); buildTable(); calcStats(); hideCtxMenu();
+});
+document.getElementById('ctxClearCell').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  const rName = (reactors.find(r=>r.id===ctxTarget.rId)||{}).name || ctxTarget.rId;
+  delete plan[planKey(ctxTarget.rId, viewYear, viewMonth, ctxTarget.day)];
+  addEditHistory(`${rName} ${ctxTarget.day}日 已清空`);
+  saveState(); buildTable(); calcStats(); hideCtxMenu();
+});
+
+// ==================== Cell panel ====================
+function openCellPanel(rId, day) {
+  const r = reactors.find(x => x.id === rId);
+  document.getElementById('cellPanelTitle').textContent =
+    (r ? r.name : rId) + '  ' + viewYear + '-' + String(viewMonth+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+
+  const key = planKey(rId, viewYear, viewMonth, day);
+  const ent = plan[key];
+  const proj = ent ? getProject(ent.pid) : null;
+  const detail = document.getElementById('cellDetail');
+
+  if (proj) {
+    let editInfo = '';
+    if (ent && ent.editedBy) {
+      const editTime = ent.editedAt ? new Date(ent.editedAt).toLocaleString('zh-CN') : '';
+      editInfo = `<div style="font-size:11px;color:#888780;margin-top:4px">由 ${ent.editedBy} 编辑 ${editTime}</div>`;
+    }
+    detail.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:${proj.color};border-radius:8px;border:0.5px solid rgba(0,0,0,0.1)">
+        <div style="width:20px;height:20px;border-radius:4px;background:${proj.color};border:1px solid rgba(0,0,0,0.15);flex-shrink:0"></div>
+        <div>
+          <div style="font-weight:500;font-size:14px">${proj.name}</div>
+          ${proj.note ? '<div style="font-size:11px;color:#666;margin-top:2px">备注：' + proj.note + '</div>' : ''}
+          ${editInfo}
+        </div>
+      </div>`;
+  } else {
+    detail.innerHTML = '<div style="font-size:12px;color:#888780;padding:8px 0">此格暂无排产（点击图例项目后再双击格子填入）</div>';
+  }
+
+  document.getElementById('cellNote').value = ent ? (ent.note || '') : '';
+  ctxTarget = { rId, day };
+  openPanel('cellPanel');
+}
+
+document.getElementById('confirmCell').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  const key  = planKey(ctxTarget.rId, viewYear, viewMonth, ctxTarget.day);
+  const ent = plan[key];
+  if (!ent) { closeAllPanels(); return; }
+  ent.note = document.getElementById('cellNote').value.trim();
+  ent.editedBy = getUserName();
+  ent.editedAt = new Date().toISOString();
+  const rName = (reactors.find(r=>r.id===ctxTarget.rId)||{}).name || ctxTarget.rId;
+  addEditHistory(`${rName} ${ctxTarget.day}日 更新备注`);
+  saveState(); buildTable(); calcStats(); closeAllPanels();
+});
+document.getElementById('clearCell').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  const rName = (reactors.find(r=>r.id===ctxTarget.rId)||{}).name || ctxTarget.rId;
+  delete plan[planKey(ctxTarget.rId, viewYear, viewMonth, ctxTarget.day)];
+  addEditHistory(`${rName} ${ctxTarget.day}日 已清空`);
+  saveState(); buildTable(); calcStats(); closeAllPanels();
+});
+document.getElementById('cancelCell').addEventListener('click', closeAllPanels);
+document.getElementById('closeCellPanel').addEventListener('click', closeAllPanels);
+
+// ==================== Add project ====================
+document.getElementById('addProjectBtn').addEventListener('click', () => openPanel('addProjectPanel'));
+document.getElementById('cancelProject').addEventListener('click', closeAllPanels);
+document.getElementById('pColor').addEventListener('input', function() {
+  document.getElementById('pHex').value = this.value;
+});
+document.getElementById('pHex').addEventListener('input', function() {
+  if (/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('pColor').value = this.value;
+});
+document.getElementById('confirmProject').addEventListener('click', () => {
+  const name  = document.getElementById('pName').value.trim();
+  const color = document.getElementById('pColor').value;
+  const note  = document.getElementById('pNote').value.trim();
+  if (!name) { alert('请填写项目名称'); return; }
+  projects.push({ id: 'p' + pidCounter++, name, color, note });
+  addEditHistory(`新增项目：${name}`);
+  saveState(); buildLegend(); closeAllPanels();
+  document.getElementById('pName').value = '';
+  document.getElementById('pNote').value = '';
+});
+
+// ==================== Project context menu ====================
+let projCtxPid = null;
+const projCtxMenu = document.getElementById('projCtxMenu');
+
+function showProjectCtxMenu(x, y, pid) {
+  projCtxPid = pid;
+  projCtxMenu.style.left = x + 'px';
+  projCtxMenu.style.top  = y + 'px';
+  projCtxMenu.style.display = 'block';
+}
+function hideProjectCtxMenu() { projCtxMenu.style.display = 'none'; }
+
+document.getElementById('projCtxEdit').addEventListener('click', () => {
+  const p = getProject(projCtxPid);
+  if (!p) return;
+  document.getElementById('editPid').value = p.id;
+  document.getElementById('editPName').value = p.name;
+  document.getElementById('editPColor').value = p.color;
+  document.getElementById('editPHex').value = p.color;
+  document.getElementById('editPNote').value = p.note || '';
+  openPanel('editProjectPanel');
+  hideProjectCtxMenu();
+});
+
+document.getElementById('projCtxDelete').addEventListener('click', () => {
+  const p = getProject(projCtxPid);
+  if (!p) return;
+  if (!confirm('确认删除项目「' + p.name + '」？')) return;
+  projects = projects.filter(x => x.id !== projCtxPid);
+  if (selectedProjectId === projCtxPid) selectedProjectId = null;
+  addEditHistory(`删除项目：${p.name}`);
+  saveState(); buildLegend(); hideProjectCtxMenu();
+});
+
+document.getElementById('editPColor').addEventListener('input', function() {
+  document.getElementById('editPHex').value = this.value;
+});
+document.getElementById('editPHex').addEventListener('input', function() {
+  if (/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('editPColor').value = this.value;
+});
+
+document.getElementById('confirmEditProject').addEventListener('click', () => {
+  const pid  = document.getElementById('editPid').value;
+  const name = document.getElementById('editPName').value.trim();
+  const color = document.getElementById('editPColor').value;
+  const note  = document.getElementById('editPNote').value.trim();
+  if (!name) { alert('项目名称不能为空'); return; }
+  const p = getProject(pid);
+  if (!p) return;
+  p.name = name; p.color = color; p.note = note;
+  addEditHistory(`编辑项目：${name}`);
+  saveState(); buildLegend(); buildTable(); closeAllPanels();
+});
+
+document.getElementById('cancelEditProject').addEventListener('click', closeAllPanels);
+
+// ==================== Reactor management ====================
+document.getElementById('manageReactorBtn').addEventListener('click', () => {
+  buildReactorList();
+  openPanel('reactorPanel');
+});
+document.getElementById('closeReactorPanel').addEventListener('click', closeAllPanels);
+
+function buildReactorList() {
+  const list = document.getElementById('reactorList');
+  list.innerHTML = '';
+  reactors.forEach((r, idx) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:6px;background:#f5f5f0;border-radius:6px;padding:6px 8px';
+    div.innerHTML = `
+      <span style="font-size:11px;color:#888780;min-width:44px">${r.id}</span>
+      <input type="text" value="${r.name}" style="flex:1;font-size:12px;padding:3px 6px;border:0.5px solid rgba(0,0,0,0.18);border-radius:4px;background:#fff;min-width:70px" data-ridx="${idx}" data-field="name">
+      <input type="text" value="${r.cap}" placeholder="容积" style="width:70px;font-size:12px;padding:3px 6px;border:0.5px solid rgba(0,0,0,0.18);border-radius:4px;background:#fff" data-ridx="${idx}" data-field="cap">
+      <button class="btn danger" style="padding:2px 8px;font-size:11px" data-ridx="${idx}">删</button>`;
+    div.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('change', function() {
+        reactors[+this.dataset.ridx][this.dataset.field] = this.value.trim();
+        addEditHistory(`修改釜位：${reactors[+this.dataset.ridx].name}`);
+        saveState();
+      });
+    });
+    div.querySelector('button').addEventListener('click', function() {
+      if (!confirm('确认删除 ' + reactors[+this.dataset.ridx].name + '？')) return;
+      const delName = reactors[+this.dataset.ridx].name;
+      reactors.splice(+this.dataset.ridx, 1);
+      addEditHistory(`删除釜位：${delName}`);
+      saveState(); buildReactorList(); buildTable(); calcStats();
+    });
+    list.appendChild(div);
+  });
+}
+
+document.getElementById('addReactorBtn2').addEventListener('click', () => {
+  const id   = document.getElementById('newRId').value.trim().toUpperCase();
+  const name = document.getElementById('newRName').value.trim();
+  const cap  = document.getElementById('newRCap').value.trim();
+  if (!id || !name) { alert('请填写编号和名称'); return; }
+  if (reactors.find(r => r.id === id)) { alert('编号已存在'); return; }
+  reactors.push({ id, name, cap });
+  addEditHistory(`新增釜位：${name}`);
+  saveState(); buildReactorList(); buildTable(); calcStats();
+  ['newRId','newRName','newRCap'].forEach(fid => document.getElementById(fid).value = '');
+});
+
+// ==================== Month navigation ====================
+document.getElementById('prevMonth').addEventListener('click', () => {
+  viewMonth--;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  refresh();
+});
+document.getElementById('nextMonth').addEventListener('click', () => {
+  viewMonth++;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  refresh();
+});
+
+// ==================== Clear month ====================
+document.getElementById('clearMonthBtn').addEventListener('click', () => {
+  if (!confirm('确认清空 ' + fmtMonth(viewYear,viewMonth) + ' 所有排产数据？此操作不可恢复！')) return;
+  const days = daysInMonth(viewYear, viewMonth);
+  reactors.forEach(r => {
+    for (let d = 1; d <= days; d++) {
+      delete plan[planKey(r.id, viewYear, viewMonth, d)];
+    }
+  });
+  addEditHistory(`清空${fmtMonth(viewYear,viewMonth)}全部排产`);
+  saveState(); buildTable(); calcStats();
+});
+
+// ==================== Print ====================
+document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+// ==================== Export CSV ====================
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const days = daysInMonth(viewYear, viewMonth);
+  const BOM  = '\uFEFF';
+  const hdr  = ['釜位', ...Array.from({length:days},(_,i)=>i+1+'日')].join(',') + '\n';
+  let csv = BOM + hdr;
+  reactors.forEach(r => {
+    const row = [r.name];
+    for (let d = 1; d <= days; d++) {
+      const k = planKey(r.id, viewYear, viewMonth, d);
+      const e = plan[k];
+      const pr = e ? getProject(e.pid) : null;
+      row.push(pr ? (pr.name + (e.note?'('+e.note+')':'')) : '');
+    }
+    csv += row.join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '月度排产_' + viewYear + String(viewMonth+1).padStart(2,'0') + '.csv';
+  a.click();
+});
+
+// ==================== Panels ====================
+function openPanel(id) {
+  ['addProjectPanel','reactorPanel','cellPanel','editProjectPanel','historyPanel'].forEach(p => {
+    document.getElementById(p).classList.remove('open');
+  });
+  const el = document.getElementById(id);
+  el.classList.add('open');
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function closeAllPanels() {
+  ['addProjectPanel','reactorPanel','cellPanel','editProjectPanel','historyPanel'].forEach(p => {
+    document.getElementById(p).classList.remove('open');
+  });
+}
+
+// ==================== History panel ====================
+document.getElementById('historyBtn').addEventListener('click', () => {
+  renderHistory();
+  openPanel('historyPanel');
+});
+document.getElementById('closeHistoryPanel').addEventListener('click', closeAllPanels);
+
+// ==================== Cloud config panel ====================
+document.getElementById('cloudConfigBtn').addEventListener('click', () => {
+  // 填充当前配置
+  document.getElementById('cfgUserName').value = getUserName();
+  document.getElementById('cfgToken').value = getToken();
+  document.getElementById('cfgGistId').value = getGistId();
+  document.getElementById('cfgSyncInterval').value = String(getSyncInterval());
+  document.getElementById('cloudPanel').classList.toggle('open');
+});
+document.getElementById('closeCloudPanel').addEventListener('click', () => {
+  document.getElementById('cloudPanel').classList.remove('open');
+});
+
+// 保存云端配置
+document.getElementById('saveCloudConfig').addEventListener('click', async () => {
+  const userName = document.getElementById('cfgUserName').value.trim();
+  const token = document.getElementById('cfgToken').value.trim();
+  const gistId = document.getElementById('cfgGistId').value.trim();
+  const syncInterval = parseInt(document.getElementById('cfgSyncInterval').value);
+
+  if (!token) { alert('请填写 GitHub Token'); return; }
+  if (!userName) { alert('请填写用户名（协作时显示）'); return; }
+
+  localStorage.setItem(LS_USERNAME, userName);
+  localStorage.setItem(LS_TOKEN, token);
+  if (gistId) localStorage.setItem(LS_GIST_ID, gistId);
+  localStorage.setItem(LS_SYNC_INT, String(syncInterval));
+
+  setCloudStatus('syncing', '正在连接...');
+
+  try {
+    // 测试连接
+    const testData = await gistApi('GET', '/gists' + (gistId ? '/' + gistId : ''), null, 10000);
+    cloudConnected = true;
+
+    if (!gistId && testData.id) {
+      // 不太可能，但以防万一
+    } else if (gistId && testData.id) {
+      // 已有 Gist，读取数据
+      const result = await gistRead(gistId);
+      if (result.meta && (result.meta.projects?.length > 0 || Object.keys(result.planData || {}).length > 0)) {
+        applyCloudData(result);
+      }
+      lastSyncSha = result.sha;
+    }
+
+    setCloudStatus('online', '已连接 — ' + getUserName());
+    setSyncUI('online');
+    startAutoSync();
+    addLog('云端连接成功');
+  } catch(e) {
+    cloudConnected = false;
+    setCloudStatus('offline', '连接失败：' + (e.message || '网络错误'));
+    setSyncUI('error');
+    console.error('云端连接失败:', e);
+  }
+});
+
+// 测试连接
+document.getElementById('testConnection').addEventListener('click', async () => {
+  const token = document.getElementById('cfgToken').value.trim() || getToken();
+  if (!token) { alert('请填写 Token'); return; }
+
+  setCloudStatus('syncing', '测试连接中...');
+  try {
+    const res = await gistApi('GET', '/gists', null, 10000);
+    setCloudStatus('online', '连接成功！Token 有效');
+  } catch(e) {
+    setCloudStatus('offline', '连接失败：' + (e.message || 'Token 无效'));
+  }
+});
+
+// 断开连接
+document.getElementById('disconnectCloud').addEventListener('click', () => {
+  if (!confirm('断开云端连接？本地数据保留，但不再自动同步。')) return;
+  localStorage.removeItem(LS_TOKEN);
+  localStorage.removeItem(LS_GIST_ID);
+  cloudConnected = false;
+  stopAutoSync();
+  setCloudStatus('offline', '已断开连接');
+  setSyncUI('');
+  document.getElementById('cfgToken').value = '';
+  document.getElementById('cfgGistId').value = '';
+});
+
+// ==================== Refresh ====================
+function refresh() {
+  document.getElementById('monthLabel').textContent = fmtMonth(viewYear, viewMonth);
+  buildLegend();
+  buildTable();
+  calcStats();
+}
+
+// ==================== Init ====================
+async function init() {
+  // 1. 先加载本地数据
+  const local = loadFromLocal();
+  projects = local.projects;
+  reactors = local.reactors.length ? local.reactors : defaultReactors();
+  plan     = local.plan;
+  editingHistory = local.history || [];
+  pidCounter = projects.length ? Math.max(...projects.map(p => parseInt(p.id.replace('p','')) || 0)) + 1 : 7;
+  if (projects.length) selectedProjectId = projects[0].id;
+  refresh();
+
+  // 2. 如果已配置云端，自动连接
+  const token = getToken();
+  const gistId = getGistId();
+  if (token) {
+    setSyncUI('syncing');
+    setCloudStatus('syncing', '正在连接云端...');
+    try {
+      if (gistId) {
+        const cloud = await Promise.race([
+          loadFromCloud(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        ]);
+        if (cloud) {
+          // 合并：如果本地有脏数据，以云端为主但保留本地独有
+          if (Object.keys(plan).length > 0 && (!cloud.plan || Object.keys(cloud.plan).length === 0)) {
+            // 云端为空，以本地数据推送
+            dirtyFlag = true;
+          } else {
+            projects = cloud.projects;
+            reactors = cloud.reactors.length ? cloud.reactors : defaultReactors();
+            plan = cloud.plan;
+            editingHistory = cloud.history || editingHistory;
+            pidCounter = projects.length ? Math.max(...projects.map(p => parseInt(p.id.replace('p','')) || 0)) + 1 : 7;
+            if (projects.length) selectedProjectId = projects[0].id;
+          }
+          refresh();
+          cloudConnected = true;
+          setCloudStatus('online', '已连接 — ' + getUserName());
+          setSyncUI('online');
+          startAutoSync();
+
+          // 如果本地有脏数据，推送到云端
+          if (dirtyFlag) {
+            await syncToCloud();
+          }
+        } else {
+          cloudConnected = true;
+          dirtyFlag = true;
+          setCloudStatus('online', '已连接（本地数据优先）');
+          setSyncUI('online');
+          startAutoSync();
+        }
+      } else {
+        // 有 Token 但没有 Gist ID，先标记为已连接
+        cloudConnected = true;
+        dirtyFlag = true;
+        setCloudStatus('online', '已连接 — 首次同步时将创建 Gist');
+        setSyncUI('online');
+        // 不自动创建 Gist，等用户手动保存或编辑时自动创建
+      }
+    } catch(e) {
+      console.error('云端加载失败:', e);
+      setCloudStatus('offline', '连接失败：' + (e.message || '网络错误'));
+      setSyncUI('error');
+    }
+  } else {
+    setSyncUI('');
+    setCloudStatus('offline', '未配置 — 点击「云端设置」开始');
+  }
+
+  // 页面离开前保存
+  window.addEventListener('beforeunload', () => {
+    if (cloudConnected && dirtyFlag) {
+      // 用 sendBeacon 尝试保存（不一定成功）
+      persistData();
+    }
+  });
+
+  // 页面可见性变化时同步
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && cloudConnected) {
+      pullFromCloud();
+    } else if (document.visibilityState === 'hidden' && dirtyFlag) {
+      syncToCloud();
+    }
+  });
+}
+init();
+</script>
+</body>
+</html>
