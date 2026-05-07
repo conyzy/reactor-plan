@@ -277,6 +277,7 @@ td.today-col { background: #fff8f8; }
   </div>
   <div class="form-actions">
     <button class="btn primary" id="saveCloudConfig">保存并连接</button>
+    <button class="btn success" id="manualSyncBtn">⬆ 同步到云端</button>
     <button class="btn" id="testConnection">测试连接</button>
     <button class="btn danger" id="disconnectCloud">断开连接</button>
   </div>
@@ -1395,6 +1396,21 @@ document.getElementById('saveCloudConfig').addEventListener('click', async () =>
     setCloudStatus('offline', '连接失败：' + (e.message || '网络错误'));
     setSyncUI('error');
     console.error('云端连接失败:', e);
+  }
+});
+
+// 手动同步到云端
+document.getElementById('manualSyncBtn').addEventListener('click', async () => {
+  if (!cloudConnected) {
+    alert('请先保存配置并连接云端');
+    return;
+  }
+  dirtyFlag = true; // 强制标记为需要同步
+  await syncToCloud();
+  if (!dirtyFlag) {
+    addLog('手动同步成功');
+  } else {
+    addLog('同步失败，请检查网络或Token权限');
   }
 });
 
