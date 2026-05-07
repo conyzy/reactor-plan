@@ -279,6 +279,7 @@ td.today-col { background: #fff8f8; }
     <button class="btn primary" id="saveCloudConfig">保存并连接</button>
     <button class="btn success" id="manualSyncBtn">⬆ 同步到云端</button>
     <button class="btn" id="testConnection">测试连接</button>
+    <button class="btn" id="copyShareLink" style="display:none">📋 复制分享链接</button>
     <button class="btn danger" id="disconnectCloud">断开连接</button>
   </div>
   <div class="cloud-status offline" id="cloudStatus">
@@ -555,8 +556,8 @@ async function gistUpdate(gistId, metaContent, planContent, historyContent) {
 // ==================== 加载数据 ====================
 async function loadFromCloud() {
   const gistId = getGistId();
-  const token = getToken();
-  if (!gistId || !token) return null;
+  if (!gistId) return null;
+  // 不需要 Token 也能读取公开 Gist
   try {
     const result = await Promise.race([
       gistRead(gistId),
@@ -565,13 +566,13 @@ async function loadFromCloud() {
     const meta = result.meta;
     const planData = result.planData || {};
     if (!meta && Object.keys(planData).length === 0) return null;
-    lastSyncSha = result.sha;
     return {
-      projects: Array.isArray(meta.projects) ? meta.projects : [],
-      reactors: Array.isArray(meta.reactors) && meta.reactors.length > 0
+      projects: Array.isArray(meta?.projects) ? meta.projects : [],
+      reactors: Array.isArray(meta?.reactors) && meta.reactors.length > 0
                   ? meta.reactors : defaultReactors(),
       plan: typeof planData === 'object' && planData !== null ? planData : {},
       history: Array.isArray(result.history) ? result.history : [],
+      _sha: result.sha,
     };
   } catch(e) {
     console.warn('云端读取失败:', e);
@@ -641,6 +642,7 @@ async function syncToCloud() {
     dirtyFlag = false;
     setSyncUI('online');
     addLog('数据已同步到云端');
+    if (typeof updateShareButton === 'function') updateShareButton();
   } catch(e) {
     console.warn('云端同步失败:', e);
     setSyncUI('error');
@@ -1414,6 +1416,24 @@ document.getElementById('manualSyncBtn').addEventListener('click', async () => {
   }
 });
 
+// 复制分享链接
+document.getElementById('copyShareLink').addEventListener('click', () => {
+  const gistId = getGistId();
+  if (!gistId) { alert('还没有 Gist ID，请先同步数据到云端'); return; }
+  const shareUrl = window.location.origin + window.location.pathname + '?gist=' + gistId;
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    alert('分享链接已复制！\n发送给同事即可查看最新数据：\n\n' + shareUrl);
+  }).catch(() => {
+    prompt('请手动复制分享链接：', shareUrl);
+  });
+});
+
+// 显示/隐藏分享链接按钮
+function updateShareButton() {
+  const btn = document.getElementById('copyShareLink');
+  btn.style.display = getGistId() ? 'inline-block' : 'none';
+}
+
 // 测试连接
 document.getElementById('testConnection').addEventListener('click', async () => {
   const token = document.getElementById('cfgToken').value.trim() || getToken();
@@ -1461,32 +1481,41 @@ async function init() {
   if (projects.length) selectedProjectId = projects[0].id;
   refresh();
 
-  // 2. 如果已配置云端，自动连接
+  // 2. 检查 URL 参数中的 Gist ID（方便分享给他人）
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlGistId = urlParams.get('gist');
+  if (urlGistId && !getGistId()) {
+    localStorage.setItem(LS_GIST_ID, urlGistId);
+  }
+
+  // 3. 如果已配置云端，自动连接
   const token = getToken();
   const gistId = getGistId();
-  if (token) {
+  if (gistId) {
     setSyncUI('syncing');
-    setCloudStatus('syncing', '正在连接云端...');
+    setCloudStatus('syncing', '正在加载云端数据...');
     try {
-      if (gistId) {
-        const cloud = await Promise.race([
-          loadFromCloud(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
-        ]);
-        if (cloud) {
-          // 合并：如果本地有脏数据，以云端为主但保留本地独有
-          if (Object.keys(plan).length > 0 && (!cloud.plan || Object.keys(cloud.plan).length === 0)) {
-            // 云端为空，以本地数据推送
-            dirtyFlag = true;
-          } else {
-            projects = cloud.projects;
-            reactors = cloud.reactors.length ? cloud.reactors : defaultReactors();
-            plan = cloud.plan;
-            editingHistory = cloud.history || editingHistory;
-            pidCounter = projects.length ? Math.max(...projects.map(p => parseInt(p.id.replace('p','')) || 0)) + 1 : 7;
-            if (projects.length) selectedProjectId = projects[0].id;
-          }
-          refresh();
+      const cloud = await Promise.race([
+        loadFromCloud(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ]);
+      if (cloud) {
+        // 合并：如果本地有脏数据，以云端为主但保留本地独有
+        if (Object.keys(plan).length > 0 && (!cloud.plan || Object.keys(cloud.plan).length === 0)) {
+          // 云端为空，以本地数据推送
+          dirtyFlag = true;
+        } else {
+          projects = cloud.projects;
+          reactors = cloud.reactors.length ? cloud.reactors : defaultReactors();
+          plan = cloud.plan;
+          editingHistory = cloud.history || editingHistory;
+          pidCounter = projects.length ? Math.max(...projects.map(p => parseInt(p.id.replace('p','')) || 0)) + 1 : 7;
+          if (projects.length) selectedProjectId = projects[0].id;
+        }
+        refresh();
+        lastSyncSha = cloud._sha;
+
+        if (token) {
           cloudConnected = true;
           setCloudStatus('online', '已连接 — ' + getUserName());
           setSyncUI('online');
@@ -1497,25 +1526,31 @@ async function init() {
             await syncToCloud();
           }
         } else {
+          // 没有 Token，只读模式
+          setCloudStatus('offline', '只读模式 — 配置 Token 后可编辑同步');
+          setSyncUI('online');
+          addLog('已加载云端数据（只读，配置 Token 后可同步编辑）');
+        }
+      } else {
+        if (token) {
           cloudConnected = true;
           dirtyFlag = true;
           setCloudStatus('online', '已连接（本地数据优先）');
           setSyncUI('online');
           startAutoSync();
         }
-      } else {
-        // 有 Token 但没有 Gist ID，先标记为已连接
-        cloudConnected = true;
-        dirtyFlag = true;
-        setCloudStatus('online', '已连接 — 首次同步时将创建 Gist');
-        setSyncUI('online');
-        // 不自动创建 Gist，等用户手动保存或编辑时自动创建
       }
     } catch(e) {
       console.error('云端加载失败:', e);
-      setCloudStatus('offline', '连接失败：' + (e.message || '网络错误'));
+      setCloudStatus('offline', '加载失败：' + (e.message || '网络错误'));
       setSyncUI('error');
     }
+  } else if (token) {
+    // 有 Token 但没有 Gist ID
+    cloudConnected = true;
+    dirtyFlag = true;
+    setCloudStatus('online', '已连接 — 首次同步时将创建 Gist');
+    setSyncUI('online');
   } else {
     setSyncUI('');
     setCloudStatus('offline', '未配置 — 点击「云端设置」开始');
