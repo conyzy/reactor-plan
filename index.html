@@ -519,9 +519,10 @@ async function gistRead(gistId) {
   const metaFile = files['meta.json'];
   const planFile = files['plan.json'];
   const historyFile = files['history.json'];
-  const meta = metaFile ? JSON.parse(metaFile.content) : null;
-  const planData = planFile ? JSON.parse(planFile.content) : {};
-  const history = historyFile ? JSON.parse(historyFile.content) : [];
+  const safeParse = (s) => { try { return s ? JSON.parse(s) : null; } catch(e) { return null; } };
+  const meta = metaFile ? safeParse(metaFile.content) : null;
+  const planData = planFile ? safeParse(planFile.content) : {};
+  const history = historyFile ? safeParse(historyFile.content) : [];
   return { meta, planData, history, sha: data.version };
 }
 
@@ -1345,13 +1346,38 @@ document.getElementById('saveCloudConfig').addEventListener('click', async () =>
   setCloudStatus('syncing', '正在连接...');
 
   try {
-    // 测试连接
-    const testData = await gistApi('GET', '/gists' + (gistId ? '/' + gistId : ''), null, 10000);
+    // 测试连接：先验证 Token 有效性
+    let testData = null;
+    
+    if (gistId) {
+      // 有 Gist ID，尝试读取
+      try {
+        testData = await gistApi('GET', '/gists/' + gistId, null, 10000);
+      } catch(e) {
+        // Gist ID 无效或不存在，自动创建新的
+        console.warn('Gist ID 无效，将创建新的:', e.message);
+        testData = null;
+        localStorage.removeItem(LS_GIST_ID);
+        document.getElementById('cfgGistId').value = '';
+      }
+    }
+    
+    if (!testData || !testData.id) {
+      // 没有 Gist 或 Gist 无效，列出 Gist 确认 Token 有效
+      await gistApi('GET', '/gists', null, 10000);
+      // Token 有效，但需要创建 Gist（等用户点击"同步到云端"时自动创建）
+      cloudConnected = true;
+      dirtyFlag = true; // 标记有数据需要同步
+      setCloudStatus('online', '已连接 — ' + getUserName() + '（点击"同步到云端"创建数据）');
+      setSyncUI('online');
+      startAutoSync();
+      addLog('云端连接成功，请同步数据');
+      return;
+    }
+
     cloudConnected = true;
 
-    if (!gistId && testData.id) {
-      // 不太可能，但以防万一
-    } else if (gistId && testData.id) {
+    if (testData.id) {
       // 已有 Gist，读取数据
       const result = await gistRead(gistId);
       if (result.meta && (result.meta.projects?.length > 0 || Object.keys(result.planData || {}).length > 0)) {
