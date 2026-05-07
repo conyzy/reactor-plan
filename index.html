@@ -503,8 +503,8 @@ async function gistApi(method, path, body, timeoutMs) {
     clearTimeout(timer);
     const text = await res.text().catch(() => '');
     if (!res.ok) throw new Error(method + ' ' + res.status + ' ' + text.slice(0, 200));
-    if (method === 'GET' && res.status !== 204) {
-      try { return JSON.parse(text || '{}'); } catch(e) { return text; }
+    if (res.status !== 204) {
+      try { return JSON.parse(text || '{}'); } catch(e) { return { ok: true }; }
     }
     return { ok: true };
   } catch(e) {
